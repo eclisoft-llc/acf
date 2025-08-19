@@ -1,0 +1,537 @@
+DELIMITER $$
+CREATE OR REPLACE PROCEDURE `CARS_118_LEGACY_CONTENT_REPORTS`(IN i_subques_list TEXT, IN i_year TEXT, IN i_entity_list TEXT)
+proc_label: BEGIN
+
+DECLARE v_iter INTEGER DEFAULT 0;
+DECLARE v_createtable TEXT DEFAULT '';
+DECLARE v_droptable TEXT DEFAULT '';
+DECLARE v_whilecnt INTEGER DEFAULT 1;
+DECLARE v_collist TEXT DEFAULT '';
+DECLARE v_collist1 TEXT DEFAULT '';
+DECLARE v_infinite INTEGER DEFAULT 0;
+DECLARE v_comma CHAR(1) DEFAULT ',';
+DECLARE v_sql TEXT DEFAULT '';
+DECLARE v_union TEXT DEFAULT ' ';
+DECLARE v_sqlhdr TEXT DEFAULT '';
+DECLARE v_sqlans TEXT DEFAULT '';
+DECLARE v_rand CHAR(7) DEFAULT '';
+DECLARE v_dropsql TEXT DEFAULT '';
+DECLARE v_crsql TEXT DEFAULT '';
+DECLARE v_spname TEXT DEFAULT '';
+DECLARE v_logtext TEXT DEFAULT '';
+
+
+
+	DECLARE EXIT HANDLER FOR SQLEXCEPTION
+	BEGIN
+		GET DIAGNOSTICS CONDITION 1 @sqlstate = RETURNED_SQLSTATE, @errno = MYSQL_ERRNO, @text = MESSAGE_TEXT;
+		SET @full_error = CONCAT("ERROR ", @errno, " (", @sqlstate, "): ", @text);
+		SET v_logtext=CONCAT('Status: Error|Parameters: i_subques_list=',i_subques_list,';i_year=',i_year,';i_entity_list=',i_entity_list);
+		
+		UPDATE CARS_SP_LOG
+			SET SP_STATUS_TEXT=v_logtext,SP_LOG_MESSAGE_TEXT=@full_error,END_TS=NOW()
+		WHERE SP_NAME=v_spname;
+
+			
+		
+	END;
+	
+SELECT SUBSTR(CAST(RAND() * 100000000 AS VARCHAR(50)), 1, 7) INTO v_rand FROM DUAL;
+
+SET v_spname = CONCAT('CARS_118_LEGACY_CONTENT_REPORTS_',v_rand);
+SET v_logtext=CONCAT('Status: Started|Parameters: i_subques_list=',i_subques_list,';i_year=',i_year,';i_entity_list=',i_entity_list);
+
+	INSERT INTO CARS_SP_LOG (SP_NAME, SP_STATUS_TEXT, START_TS)
+		VALUES(v_spname, v_logtext, NOW());	
+
+
+/*
+SET v_dropsql = '';
+SET v_dropsql = CONCAT('DROP TEMPORARY TABLE IF EXISTS CARS_TEMP_SUBQUES_RESP_LIST', v_rand);
+EXECUTE IMMEDIATE (v_dropsql);
+*/
+
+
+DROP TEMPORARY TABLE IF EXISTS CARS_TEMP_SUBQUES_RESP_LIST;
+
+
+SET v_sql = '';
+SET v_sql = CONCAT('CREATE TEMPORARY TABLE CARS_TEMP_SUBQUES_RESP_LIST   
+AS 
+SELECT 
+DENSE_RANK() OVER(ORDER BY Q.STPLAN_SECT_QUEST_ID , Q.STPLAN_SEQ) AS LIST_ORDER
+,Q.STPLAN_SECT_QUEST_ID AS QUEST_ID
+,Q.STPLAN_SEC_QUEST_NAME AS QUESTION
+,Q.STPLAN_FORM_TEXT AS  RESPONSE
+,Q.STPLAN_QUES_CODE AS RESP_TYPE_CD
+,Q.STPLAN_FORM_TEXT AS  COL_HEADER
+,Q.STPLAN_SECT_QUEST_ID  AS GROUP_COL
+FROM  CARS_LEGACY_118_STPLAN_SECT_QUEST Q
+JOIN CARS_PERIOD P ON  SUBSTRING(`PERIOD_DESC`,4,4) =Q.STPLAN_YEAR 
+WHERE
+Q.STPLAN_SEC_QUEST_NAME IN (', i_subques_list, ') 
+AND P.PERIOD_ID= ', i_year ,'  
+AND Q.STPLAN_SECT_QUEST_ID NOT IN (
+
+21590,
+21595,
+21600,
+21605,
+21610,
+21615,
+21850,
+21860,
+21865,
+21870,
+21875,
+21880,
+22230,
+22240,
+22245,
+22250,
+22255,
+22260,
+22455,
+22465,
+22470,
+22475,
+22480,
+22485,
+23515,
+23525,
+23530,
+23535,
+23540,
+23545,
+23595,
+23605,
+23610,
+23615,
+23620,
+23625,
+23955,
+23965,
+23970,
+23975,
+23980,
+23985,
+24025,
+24035,
+24040,
+24045,
+24050,
+24055,
+24120,
+24130,
+24135,
+24140,
+24145,
+24150,
+25625,
+25635,
+25640,
+25645,
+25650,
+25655,
+25705,
+25715,
+25720,
+25725,
+25730,
+25735,
+26155,
+26165,
+26170,
+26175,
+26180,
+26185,
+26280,
+26290,
+26295,
+26300,
+26305,
+26310,
+26755,
+26765,
+26770,
+26775,
+26780,
+26785,
+26825,
+26835,
+26840,
+26845,
+26850,
+26855,
+27000,
+27010,
+27015,
+27020,
+27025,
+27030,
+27070,
+27080,
+27085,
+27090,
+27095,
+27100,
+27145,
+27155,
+27160,
+27165,
+27170,
+27175,
+27220,
+27230,
+27235,
+27240,
+27245,
+27250,
+27295,
+27305,
+27310,
+27315,
+27320,
+27325,
+27370,
+27380,
+27385,
+27390,
+27395,
+27400,
+27485,
+27495,
+27500,
+27505,
+27510,
+27515,
+27735,
+27745,
+27750,
+27755,
+27760,
+27765,
+28180,
+28190,
+28195,
+28200,
+28205,
+28210,
+28530,
+28540,
+28545,
+28550,
+28555,
+28560,
+28615,
+28625,
+28630,
+28635,
+28640,
+28645)
+')
+;
+
+
+EXECUTE IMMEDIATE(v_sql);
+
+
+SELECT COUNT(DISTINCT LIST_ORDER) INTO v_iter FROM CARS_TEMP_SUBQUES_RESP_LIST;
+
+IF v_iter > 200 THEN
+	SELECT 'TOO MANY' FROM DUAL;
+	SELECT 'TOO MANY' FROM DUAL;
+	LEAVE proc_label;
+END IF;
+
+
+SET v_dropsql = '';
+SET v_dropsql = CONCAT('DROP TEMPORARY TABLE IF EXISTS CARS_TEMP_ANS_COLS', v_rand);
+EXECUTE IMMEDIATE (v_dropsql);
+
+
+
+SET v_whilecnt = 1;
+SET v_createtable = CONCAT('CREATE TEMPORARY TABLE CARS_TEMP_ANS_COLS', v_rand, '  
+( ENTITY_NAME TEXT NULL, REGION_NAME TEXT NULL, REGION_ID INT NULL, AMEND_SEQ_NUM INT NULL, ');
+
+a_while:
+	WHILE v_whilecnt <= v_iter DO
+		SET v_infinite = v_infinite + 1;
+		
+		IF v_iter = 0 THEN 
+			SET v_collist = '';
+			LEAVE a_while;
+		END IF;
+		
+		IF v_whilecnt = 1 THEN 
+			SET v_collist = v_createtable;
+		END IF;
+		
+		IF v_whilecnt = v_iter THEN
+			SET v_comma = '';
+		END IF;
+		
+		SET v_collist = CONCAT(v_collist, 'COL', v_whilecnt, ' TEXT NULL', v_comma);
+		
+		SET v_whilecnt = v_whilecnt + 1;
+		
+		IF v_infinite = 200 THEN
+			LEAVE a_while;
+		END IF;
+		
+	END WHILE a_while;
+
+SET v_collist = CONCAT(v_collist, ');');
+
+EXECUTE IMMEDIATE(v_collist);
+
+
+SET v_dropsql = '';
+SET v_dropsql = CONCAT('DROP TEMPORARY TABLE IF EXISTS CARS_TEMP_ANSWERS', v_rand);
+
+EXECUTE IMMEDIATE (v_dropsql);
+
+
+SET v_crsql = '';
+SET v_crsql = CONCAT('CREATE TEMPORARY TABLE CARS_TEMP_ANSWERS', v_rand, ' AS SELECT * FROM CARS_TEMP_ANS_COLS', v_rand);
+
+EXECUTE IMMEDIATE (v_crsql);
+
+SET v_dropsql = '';
+SET v_dropsql = CONCAT('DROP TEMPORARY TABLE IF EXISTS CARS_TEMP_HEADER_COLS', v_rand);
+EXECUTE IMMEDIATE (v_dropsql);
+
+
+SET v_whilecnt = 1;
+SET v_comma = ',';
+SET v_collist = '';
+SET v_infinite = 0;
+SET v_createtable = CONCAT('CREATE TEMPORARY TABLE CARS_TEMP_HEADER_COLS', v_rand, '  
+( ENTITY_NAME TEXT NULL, REGION_NAME TEXT NULL, REGION_ID TEXT NULL, AMEND_SEQ_NUM TEXT NULL,  ');
+
+
+a1_while:
+	WHILE v_whilecnt <= v_iter DO
+		SET v_infinite = v_infinite + 1;
+		
+		IF v_iter = 0 THEN 
+			SET v_collist = '';
+			LEAVE a1_while;
+		END IF;
+		
+		IF v_whilecnt = 1 THEN 
+			SET v_collist = v_createtable;
+		END IF;
+		
+		IF v_whilecnt = v_iter THEN
+			SET v_comma = '';
+		END IF;
+		
+		SET v_collist = CONCAT(v_collist, 'HEADER', v_whilecnt, ' TEXT NULL', v_comma);
+		
+		SET v_whilecnt = v_whilecnt + 1;
+		
+		IF v_infinite = 200 THEN
+			LEAVE a1_while;
+		END IF;
+		
+	END WHILE a1_while;
+
+SET v_collist = CONCAT(v_collist, ');');
+
+
+EXECUTE IMMEDIATE(v_collist);
+
+SET v_dropsql = '';
+SET v_dropsql = CONCAT('DROP TEMPORARY TABLE IF EXISTS CARS_TEMP_HEADERS', v_rand);
+EXECUTE IMMEDIATE (v_dropsql);
+
+
+SET v_crsql = '';
+SET v_crsql = CONCAT('CREATE TEMPORARY TABLE CARS_TEMP_HEADERS', v_rand, ' AS SELECT * FROM CARS_TEMP_HEADER_COLS', v_rand);
+
+EXECUTE IMMEDIATE (v_crsql);
+
+
+SET v_dropsql = '';
+SET v_dropsql = CONCAT('DROP TEMPORARY TABLE IF EXISTS CARS_TEMP_AMEND_LIST', v_rand);
+EXECUTE IMMEDIATE (v_dropsql);
+
+
+SET v_sql = '';
+SET v_sql = CONCAT('
+CREATE TEMPORARY TABLE CARS_TEMP_AMEND_LIST', v_rand, ' 
+AS 
+SELECT
+E.ENTITY_NAME
+,0 AS HDR_AMEND_ID
+,R.ENTITY_NAME AS REGION_NAME
+,E.REGION_ID
+,P.PERIOD_ID
+,X.STPLAN_RESP_VERSION AS AMEND_SEQ_NUM
+,X.STPLAN_STATE_CODE
+,X.STPLAN_YEAR
+FROM
+(SELECT  
+STPLAN_STATE_CODE, STPLAN_YEAR, MAX(STPLAN_RESP_VERSION) AS STPLAN_RESP_VERSION
+FROM
+CARS_LEGACY_118_STPLAN_SECT_RESP R
+GROUP BY 1,2)X
+JOIN CARS_LEGACY_118_STPLAN_STATE_INFO_REF S ON X.STPLAN_STATE_CODE=S.STATE_CODE
+JOIN CARS_ENTITY  E ON E.ENTITY_STATE_CD=S.STATE_ABBR AND E.ENTITY_TYPE_CD=''STATE-TER''
+JOIN CARS_ENTITY R ON E.REGION_ID = R.ENTITY_ID  AND R.ENTITY_TYPE_CD = ''REGION'' AND E.ENTITY_TYPE_CD=''STATE-TER''
+JOIN CARS_PERIOD P ON  SUBSTRING(P.PERIOD_DESC,4,4) =X.STPLAN_YEAR AND P.118_FLAG=1
+WHERE P.PERIOD_ID= ', i_year ,'  AND E.ENTITY_ID IN (', i_entity_list, ')'
+ )
+;
+
+		
+EXECUTE IMMEDIATE(v_sql);
+
+
+SET v_infinite = 0;
+SET v_whilecnt = 1;
+SET v_sql = '';
+
+b_while:
+	WHILE v_whilecnt <= v_iter DO
+		SET v_infinite = v_infinite + 1;
+	
+
+		SET v_sql = CONCAT(
+		'INSERT INTO CARS_TEMP_ANS_COLS', v_rand, ' ( ENTITY_NAME, REGION_NAME, REGION_ID, AMEND_SEQ_NUM, COL', v_whilecnt, 
+		') 
+		SELECT
+		M.ENTITY_NAME, M.REGION_NAME, M.REGION_ID, M.AMEND_SEQ_NUM 
+		,MAX(
+		CASE WHEN Q.STPLAN_QUES_CODE = ''CB'' AND R.STPLAN_RESP_CHECK=1 THEN ''X''
+		 	 WHEN Q.STPLAN_QUES_CODE = ''NB'' THEN R.STPLAN_RESP_NUM
+			 WHEN Q.STPLAN_QUES_CODE = ''DB'' THEN R.STPLAN_RESP_DESC
+			 WHEN Q.STPLAN_QUES_CODE = ''TB'' THEN R.STPLAN_RESP_TEXT
+			 WHEN Q.STPLAN_QUES_CODE = ''PB'' THEN R.STPLAN_RESP_TEXT
+			 WHEN SUBSTR(Q.STPLAN_QUES_CODE, 1,1) = ''Y'' AND R.STPLAN_RESP_YES_NO >=1 THEN ''X''
+			 WHEN SUBSTR(Q.STPLAN_QUES_CODE, 1,1) = ''N'' AND Q.STPLAN_QUES_CODE <> ''NB'' AND R.STPLAN_RESP_YES_NO >=1 THEN ''X''
+            END
+		) AS ANSWER
+		FROM CARS_TEMP_AMEND_LIST', v_rand, ' M
+        JOIN CARS_LEGACY_118_STPLAN_SECT_RESP_FINAL R ON R.STPLAN_STATE_CODE=M.STPLAN_STATE_CODE AND R.STPLAN_RESP_VERSION=M.AMEND_SEQ_NUM AND R.STPLAN_YEAR=M.STPLAN_YEAR
+        JOIN CARS_LEGACY_118_STPLAN_SECT_QUEST Q ON R.STPLAN_SECT_QUEST_ID=Q.STPLAN_SECT_QUEST_ID
+		JOIN CARS_TEMP_SUBQUES_RESP_LIST  C ON R.STPLAN_SECT_QUEST_ID = C.QUEST_ID
+		WHERE M.PERIOD_ID= ', i_year ,' AND  C.LIST_ORDER = ', v_whilecnt, 
+		' GROUP BY ENTITY_NAME, REGION_NAME, REGION_ID, AMEND_SEQ_NUM, C.GROUP_COL'
+		)
+		;
+		
+		EXECUTE IMMEDIATE (v_sql);
+		
+		SET v_whilecnt = v_whilecnt + 1;
+		
+		IF v_infinite = 200 THEN
+			LEAVE b_while;
+		END IF;
+
+	END WHILE b_while;
+	
+	
+SET v_sql = CONCAT(
+		'INSERT INTO CARS_TEMP_ANS_COLS', v_rand, ' (ENTITY_NAME, REGION_NAME, REGION_ID, AMEND_SEQ_NUM)
+		SELECT M.ENTITY_NAME, M.REGION_NAME, M.REGION_ID, M.AMEND_SEQ_NUM
+		FROM CARS_TEMP_AMEND_LIST', v_rand, ' M
+		LEFT OUTER JOIN CARS_TEMP_ANS_COLS', v_rand, ' A
+		ON M.ENTITY_NAME = A.ENTITY_NAME
+		WHERE A.ENTITY_NAME IS NULL'
+		);
+		
+	EXECUTE IMMEDIATE (v_sql);
+
+
+SET v_infinite = 0;
+SET v_whilecnt = 1;
+SET v_sql = '';
+
+b1_while:
+	WHILE v_whilecnt <= v_iter DO
+		SET v_infinite = v_infinite + 1;
+	
+
+		SET v_sql = CONCAT(
+		'INSERT INTO CARS_TEMP_HEADER_COLS', v_rand, ' ( ENTITY_NAME, REGION_NAME, REGION_ID, AMEND_SEQ_NUM,  HEADER', v_whilecnt, 
+		') 
+		SELECT
+		''HEADER ROW'', NULL, NULL, NULL,    
+		COL_HEADER
+		FROM CARS_TEMP_SUBQUES_RESP_LIST   
+		WHERE LIST_ORDER = ', v_whilecnt
+		)
+		;
+		
+		EXECUTE IMMEDIATE (v_sql);
+		
+		SET v_whilecnt = v_whilecnt + 1;
+		
+		IF v_infinite = 200 THEN
+			LEAVE b1_while;
+		END IF;
+
+	END WHILE b1_while;
+
+
+
+SET v_infinite = 0;
+SET v_whilecnt = 1;
+SET v_comma = ',';
+
+
+SET v_sqlhdr = CONCAT('INSERT INTO CARS_TEMP_HEADERS', v_rand, ' SELECT ''State/Territory'', ''Region'', ''REGION_ID'', ''Plan Version'',  ');
+SET v_sqlans = CONCAT('INSERT INTO CARS_TEMP_ANSWERS', v_rand,' SELECT ENTITY_NAME, REGION_NAME, REGION_ID, AMEND_SEQ_NUM, ');
+
+
+c1_while:
+	WHILE v_whilecnt <= v_iter DO
+		SET v_infinite = v_infinite + 1;
+	
+		IF v_whilecnt = v_iter THEN
+			SET v_comma = '';
+		END IF;
+	
+		SET v_sqlhdr = CONCAT(v_sqlhdr, ' MAX(HEADER', v_whilecnt, ')', v_comma);
+		SET v_sqlans = CONCAT(v_sqlans, ' MAX(COL', v_whilecnt, ')', v_comma);
+		
+		SET v_whilecnt = v_whilecnt + 1;
+
+		IF v_infinite = 200 THEN
+			LEAVE c1_while;
+		END IF;
+	
+	END WHILE c1_while;
+
+SET v_sqlhdr = CONCAT(v_sqlhdr, ' FROM CARS_TEMP_HEADER_COLS', v_rand, ' GROUP BY ENTITY_NAME, REGION_NAME, REGION_ID, AMEND_SEQ_NUM');
+SET v_sqlans = CONCAT(v_sqlans, ' FROM CARS_TEMP_ANS_COLS', v_rand, ' GROUP BY ENTITY_NAME, REGION_NAME, REGION_ID, AMEND_SEQ_NUM');
+
+
+EXECUTE IMMEDIATE(v_sqlhdr);
+
+EXECUTE IMMEDIATE(v_sqlans);
+
+
+SET v_sql = '';
+SET v_sql = CONCAT('SELECT * FROM CARS_TEMP_HEADERS', v_rand);
+
+EXECUTE IMMEDIATE(v_sql);
+
+SET v_sql = '';
+SET v_sql = CONCAT('SELECT * FROM CARS_TEMP_ANSWERS', v_rand);
+
+
+EXECUTE IMMEDIATE(v_sql);
+
+SET v_logtext=CONCAT('Status: Success|Parameters: i_subques_list=',i_subques_list,';i_year=',i_year,';i_entity_list=',i_entity_list);
+
+UPDATE CARS_SP_LOG
+SET SP_STATUS_TEXT= v_logtext, END_TS=NOW()
+WHERE SP_NAME=v_spname;
+		
+	
+END$$
+DELIMITER ;
